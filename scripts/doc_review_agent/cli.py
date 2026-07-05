@@ -3,9 +3,10 @@ from __future__ import annotations
 import argparse
 import getpass
 import os
+import sys
 from pathlib import Path
 
-from .chunking import chunk_text
+from .chunking import chunk_document
 from .config import (
     DEFAULT_KEYRING_SERVICE,
     DEFAULT_KEYRING_USERNAME,
@@ -56,6 +57,9 @@ def _build_parser() -> argparse.ArgumentParser:
     review_parser.add_argument("--sensitive-list", help="Text file of sensitive/internal terms or rules.")
     review_parser.add_argument("--agent", action="append", choices=list(DEFAULT_AGENTS), help="Agent to run. Repeatable.")
     review_parser.add_argument("--out", default="review_report.md", help="Markdown report output path.")
+    review_parser.add_argument("--raw-out", help="Optional path to save raw agent outputs for debugging.")
+    review_parser.add_argument("--lang", help="Language for findings (default: REVIEW_LANGUAGE env or zh).")
+    review_parser.add_argument("--workers", type=int, help="Concurrent API calls (default: REVIEW_MAX_WORKERS env or 4).")
     review_parser.add_argument("--env", default=".env", help="Path to .env file.")
     review_parser.add_argument("--api-key", help="Override OPENAI_API_KEY.")
     review_parser.add_argument("--base-url", help="Override OPENAI_BASE_URL.")
@@ -67,11 +71,14 @@ def _build_parser() -> argparse.ArgumentParser:
 
 def _inspect(args: argparse.Namespace) -> int:
     document = load_document(args.document)
-    chunks = chunk_text(document.text, max_chars=args.max_chars)
+    chunks = chunk_document(document.text, max_chars=args.max_chars)
     print(f"Document: {document.path}")
     print(f"Kind: {document.kind}")
     print(f"Characters: {len(document.text)}")
     print(f"Chunks: {len(chunks)}")
+    for index, chunk in enumerate(chunks, start=1):
+        section = chunk.section or "[no heading]"
+        print(f"  chunk {index}: {len(chunk.text)} chars | {section}")
     return 0
 
 
@@ -108,7 +115,13 @@ def _review(args: argparse.Namespace) -> int:
         return 2
 
     client = OpenAICompatibleClient(config)
-    reviewer = DocumentReviewAgent(client, max_chunk_chars=config.max_chunk_chars)
+    reviewer = DocumentReviewAgent(
+        client,
+        max_chunk_chars=config.max_chunk_chars,
+        max_workers=args.workers or config.max_workers,
+        language=args.lang or config.language,
+        progress=lambda message: print(message, file=sys.stderr),
+    )
     result = reviewer.review(
         args.document,
         public_source_paths=args.public_source,
@@ -120,6 +133,11 @@ def _review(args: argparse.Namespace) -> int:
     output_path = Path(args.out)
     output_path.write_text(render_markdown_report(result), encoding="utf-8")
     print(f"Report written to {output_path}")
+
+    if args.raw_out:
+        raw_path = Path(args.raw_out)
+        raw_path.write_text("\n\n---\n\n".join(result.raw_agent_outputs), encoding="utf-8")
+        print(f"Raw agent outputs written to {raw_path}")
     return 0
 
 

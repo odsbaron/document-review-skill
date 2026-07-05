@@ -1,6 +1,6 @@
 ---
 name: decision-document-auditor
-description: Use when reviewing, drafting, rewriting, or stress-testing product proposals, strategy memos, decision docs, PRDs, RFCs, one-pagers, roadmap recommendations, launch plans, investment cases, team operating principles, AI/agentic work guidelines, mechanism-building docs, or local .md/.txt/.pdf/.docx files that need clear decision asks, options, tradeoffs, evidence, risks, assumptions, success metrics, calibrated normative wording, reusable capability structure, or automated multi-agent review.
+description: Use when reviewing, drafting, rewriting, or stress-testing decision-oriented documents — product proposals, strategy memos, PRDs, RFCs, launch plans, roadmap recommendations, investment cases, or team operating principles — for decision clarity, alternatives, evidence strength, risks, normative wording, and reusable structure. Also covers running the bundled multi-agent automated review over local .md/.txt/.pdf/.docx files.
 ---
 
 # Decision Document Auditor
@@ -40,7 +40,7 @@ Install script dependencies when needed:
 python -m pip install -r scripts/requirements.txt
 ```
 
-Run the full review when an OpenAI-compatible API key is available through environment variables or keyring:
+Run the full review when an OpenAI-compatible API key is available through environment variables (see `.env.example`) or keyring:
 
 ```bash
 python scripts/review_document.py review path/to/document.md \
@@ -50,6 +50,10 @@ python scripts/review_document.py review path/to/document.md \
 ```
 
 Supported agents: `logic`, `inside`, `data`, `reader`, `decision`, `normative`, `operating`.
+
+Useful flags: `--agent` to select a subset (repeatable), `--max-chunks` for trial runs, `--lang` for findings language (default zh), `--workers` for concurrency, `--raw-out` to save raw agent outputs for debugging.
+
+Failed or unparsable agent calls do not abort the run; they appear as `agent_error` / `parse_error` findings and should be treated as coverage gaps, not document issues.
 
 Prefer environment variables or keyring for credentials. Do not put API keys in the command line unless the user explicitly asks; command history can leak secrets.
 
@@ -110,7 +114,7 @@ When auditing, use this structure unless the user asks for another format:
 [Rewrite the highest-leverage section or sentence.]
 ```
 
-If the document is already strong, say so directly and focus on the few remaining decision risks.
+If the document is already strong, say so directly and focus on the few remaining decision risks. Omit the Automated Findings section when the script was not run.
 
 ## Review Standards
 

@@ -21,6 +21,17 @@ TEXT_EXTENSIONS = {
 }
 
 
+def read_text_best_effort(path: str | Path) -> str:
+    """Read a text file, tolerating common non-UTF-8 encodings (e.g. GBK/GB18030)."""
+    data = Path(path).read_bytes()
+    for encoding in ("utf-8-sig", "utf-8", "gb18030"):
+        try:
+            return data.decode(encoding)
+        except UnicodeDecodeError:
+            continue
+    return data.decode("utf-8", errors="replace")
+
+
 def load_document(path: str | Path) -> LoadedDocument:
     document_path = Path(path)
     if not document_path.exists():
@@ -30,7 +41,7 @@ def load_document(path: str | Path) -> LoadedDocument:
     if suffix in TEXT_EXTENSIONS:
         return LoadedDocument(
             path=document_path,
-            text=document_path.read_text(encoding="utf-8"),
+            text=read_text_best_effort(document_path),
             kind=TEXT_EXTENSIONS[suffix],
         )
     if suffix == ".pdf":

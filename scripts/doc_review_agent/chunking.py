@@ -1,9 +1,36 @@
 from __future__ import annotations
 
 import re
+from dataclasses import dataclass
+
+
+_HEADING_RE = re.compile(r"^(#{1,6})\s+(.+)$")
+
+
+@dataclass(frozen=True)
+class Chunk:
+    text: str
+    section: str = ""
+
+
+@dataclass(frozen=True)
+class _SectionedUnit:
+    text: str
+    section: str
 
 
 def chunk_text(text: str, max_chars: int = 8000, overlap_chars: int = 500) -> list[str]:
+    """Backward-compatible wrapper returning plain text chunks."""
+    return [chunk.text for chunk in chunk_document(text, max_chars=max_chars, overlap_chars=overlap_chars)]
+
+
+def chunk_document(text: str, max_chars: int = 8000, overlap_chars: int = 500) -> list[Chunk]:
+    """Split text into chunks, tracking the Markdown heading path of each chunk.
+
+    The section label is the heading path (e.g. ``"Title > Options"``) that is
+    active at the first unit of the chunk, so findings can be located in the
+    original document instead of only by chunk index.
+    """
     if max_chars < 50:
         raise ValueError("max_chars must be at least 50")
     if overlap_chars < 0:
@@ -12,38 +39,56 @@ def chunk_text(text: str, max_chars: int = 8000, overlap_chars: int = 500) -> li
     normalized = text.replace("\r\n", "\n").replace("\r", "\n").strip()
     if not normalized:
         return []
-    if len(normalized) <= max_chars:
-        return [normalized]
 
     units = _split_into_units(normalized, max_chars)
-    chunks: list[str] = []
+    if len(normalized) <= max_chars:
+        return [Chunk(text=normalized, section=units[0].section if units else "")]
+
+    chunks: list[Chunk] = []
     current = ""
+    current_section = ""
 
     for unit in units:
-        candidate = _join_blocks(current, unit)
+        candidate = _join_blocks(current, unit.text)
         if current and len(candidate) > max_chars:
-            chunks.append(current)
+            chunks.append(Chunk(text=current, section=current_section))
             overlap = _tail_overlap(current, overlap_chars)
-            current = _join_blocks(overlap, unit)
+            current = _join_blocks(overlap, unit.text)
+            current_section = unit.section
             if len(current) > max_chars:
-                current = unit
+                current = unit.text
         else:
+            if not current:
+                current_section = unit.section
             current = candidate
 
     if current:
-        chunks.append(current)
+        chunks.append(Chunk(text=current, section=current_section))
 
     return chunks
 
 
-def _split_into_units(text: str, max_chars: int) -> list[str]:
+def _split_into_units(text: str, max_chars: int) -> list[_SectionedUnit]:
     paragraphs = [part.strip() for part in re.split(r"\n\s*\n", text) if part.strip()]
-    units: list[str] = []
+    heading_stack: list[tuple[int, str]] = []
+    units: list[_SectionedUnit] = []
+
     for paragraph in paragraphs:
+        match = _HEADING_RE.match(paragraph.splitlines()[0])
+        if match:
+            level = len(match.group(1))
+            title = match.group(2).strip()
+            while heading_stack and heading_stack[-1][0] >= level:
+                heading_stack.pop()
+            heading_stack.append((level, title))
+        section = " > ".join(title for _, title in heading_stack)
+
         if len(paragraph) <= max_chars:
-            units.append(paragraph)
+            units.append(_SectionedUnit(paragraph, section))
             continue
-        units.extend(_split_long_block(paragraph, max_chars))
+        for piece in _split_long_block(paragraph, max_chars):
+            units.append(_SectionedUnit(piece, section))
+
     return units
 
 

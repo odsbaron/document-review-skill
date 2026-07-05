@@ -5,3 +5,6 @@ __pycache__/
 .venv/
 review_report.md
 *.egg-info/
+.pytest_cache/
+.ruff_cache/
+build/

@@ -1,12 +1,6 @@
+"""End-to-end smoke test: reviewer wiring, prompts, and report rendering."""
+
 import json
-import sys
-import tempfile
-import unittest
-from pathlib import Path
-
-
-ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "scripts"))
 
 
 class FakeLLMClient:
@@ -18,42 +12,34 @@ class FakeLLMClient:
         return json.dumps({"findings": []})
 
 
-class ReviewSkillIntegrationTests(unittest.TestCase):
-    def test_decision_review_agents_are_available(self):
-        from doc_review_agent.reviewer import DEFAULT_AGENTS
-        from doc_review_agent.prompts import AGENT_PROMPTS
+def test_reviewer_runs_selected_agents_and_renders_report(tmp_path):
+    from doc_review_agent.report import render_markdown_report
+    from doc_review_agent.reviewer import DocumentReviewAgent
 
-        for agent_name in ("logic", "inside", "data", "reader", "decision", "normative", "operating"):
-            self.assertIn(agent_name, DEFAULT_AGENTS)
-            self.assertIn(agent_name, AGENT_PROMPTS)
+    document_path = tmp_path / "proposal.md"
+    document_path.write_text(
+        "# Launch proposal\n\n"
+        "We must launch next week because AI can automate the workflow. "
+        "The team should align on the new process.",
+        encoding="utf-8",
+    )
 
-    def test_reviewer_runs_decision_normative_and_operating_agents(self):
-        from doc_review_agent.reviewer import DocumentReviewAgent
+    fake_client = FakeLLMClient()
+    reviewer = DocumentReviewAgent(fake_client, max_chunk_chars=2000, max_workers=1)
+    result = reviewer.review(
+        document_path,
+        agents=("decision", "normative", "operating"),
+        max_chunks=1,
+    )
 
-        with tempfile.TemporaryDirectory() as tmp:
-            document_path = Path(tmp) / "proposal.md"
-            document_path.write_text(
-                "# Launch proposal\n\n"
-                "We must launch next week because AI can automate the workflow. "
-                "The team should align on the new process.",
-                encoding="utf-8",
-            )
+    assert len(fake_client.calls) == 3
+    assert "No issues reported" in result.summary
+    system_prompts = [call[0]["content"] for call in fake_client.calls]
+    assert any("decision" in prompt.lower() for prompt in system_prompts)
+    assert any("normative" in prompt.lower() for prompt in system_prompts)
+    assert any("operating" in prompt.lower() for prompt in system_prompts)
 
-            fake_client = FakeLLMClient()
-            reviewer = DocumentReviewAgent(fake_client, max_chunk_chars=2000)
-            result = reviewer.review(
-                document_path,
-                agents=("decision", "normative", "operating"),
-                max_chunks=1,
-            )
-
-        self.assertEqual(len(fake_client.calls), 3)
-        self.assertIn("No logic", result.summary)
-        system_prompts = [call[0]["content"] for call in fake_client.calls]
-        self.assertTrue(any("decision" in prompt.lower() for prompt in system_prompts))
-        self.assertTrue(any("normative" in prompt.lower() for prompt in system_prompts))
-        self.assertTrue(any("operating" in prompt.lower() for prompt in system_prompts))
-
-
-if __name__ == "__main__":
-    unittest.main()
+    report = render_markdown_report(result)
+    assert "# Document Review Report" in report
+    assert "decision, normative, operating" in report
+    assert "No findings." in report

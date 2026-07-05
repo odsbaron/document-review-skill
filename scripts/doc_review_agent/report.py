@@ -8,6 +8,7 @@ def render_markdown_report(result: ReviewResult) -> str:
         "# Document Review Report",
         "",
         f"- Document: `{result.document_path}`",
+        f"- Agents: {', '.join(result.agents) if result.agents else '[unknown]'}",
         f"- Summary: {result.summary}",
         "",
         "## Findings",

@@ -10,10 +10,10 @@ class ConfigError(RuntimeError):
     """Raised when required runtime configuration is missing."""
 
 
-DEFAULT_BASE_URL = "https://aihubmix.com/v1"
+DEFAULT_BASE_URL = "https://api.openai.com/v1"
 DEFAULT_MODEL = "gpt-4o-mini"
-DEFAULT_KEYRING_SERVICE = "aihubmix"
-DEFAULT_KEYRING_USERNAME = "sjqy"
+DEFAULT_KEYRING_SERVICE = "doc-review-agent"
+DEFAULT_KEYRING_USERNAME = "api-key"
 
 
 @dataclass(frozen=True)
@@ -24,6 +24,9 @@ class LLMConfig:
     temperature: float = 0.1
     timeout_seconds: float = 120.0
     max_chunk_chars: int = 8000
+    max_retries: int = 3
+    max_workers: int = 4
+    language: str = "zh"
 
 
 def load_dotenv_file(path: str | Path = ".env") -> None:
@@ -61,9 +64,9 @@ def load_llm_config(
 
     if not api_key:
         raise ConfigError(
-            "Missing API key. Set OPENAI_API_KEY or AIHUBMIX_API_KEY, "
+            "Missing API key. Set OPENAI_API_KEY or AIHUBMIX_API_KEY (see .env.example), "
             f"or store it in keyring with service '{keyring_service}' "
-            f"and username '{keyring_username}'."
+            f"and username '{keyring_username}' via the store-key command."
         )
 
     return LLMConfig(
@@ -81,6 +84,9 @@ def load_llm_config(
         temperature=float(source.get("OPENAI_TEMPERATURE", "0.1")),
         timeout_seconds=float(source.get("OPENAI_TIMEOUT_SECONDS", "120")),
         max_chunk_chars=int(source.get("REVIEW_MAX_CHUNK_CHARS", "8000")),
+        max_retries=int(source.get("OPENAI_MAX_RETRIES", "3")),
+        max_workers=int(source.get("REVIEW_MAX_WORKERS", "4")),
+        language=source.get("REVIEW_LANGUAGE", "zh").strip() or "zh",
     )
 
 
@@ -101,4 +107,7 @@ def _default_keyring_get_password(service: str, username: str) -> str | None:
     except ImportError:
         return None
 
-    return keyring.get_password(service, username)
+    try:
+        return keyring.get_password(service, username)
+    except Exception:  # noqa: BLE001 - no usable keyring backend (headless/CI); fall through to ConfigError
+        return None

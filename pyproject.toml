@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "doc-review-agent"
+version = "0.2.0"
+description = "Multi-agent decision-document review CLI bundled with the decision-document-auditor skill."
+requires-python = ">=3.10"
+dependencies = [
+    "openai>=1.40.0",
+]
+
+[project.optional-dependencies]
+pdf = ["pypdf>=4.0.0"]
+docx = ["python-docx>=1.1.0"]
+keyring = ["keyring>=25.0.0"]
+all = [
+    "pypdf>=4.0.0",
+    "python-docx>=1.1.0",
+    "keyring>=25.0.0",
+]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.4",
+]
+
+[project.scripts]
+doc-review-agent = "doc_review_agent.cli:main"
+
+[tool.setuptools]
+package-dir = {"" = "scripts"}
+packages = ["doc_review_agent"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py310"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

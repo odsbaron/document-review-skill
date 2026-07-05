@@ -59,13 +59,28 @@ python scripts/review_document.py review path/to/document.md \
   --out review_report.md
 ```
 
+## Useful Flags
+
+| Flag | Purpose |
+| --- | --- |
+| `--agent` | Run a subset of agents. Repeatable. |
+| `--max-chunks` | Limit chunks for trial runs. |
+| `--lang` | Findings language (`zh` default, `en`, or a language name). |
+| `--workers` | Concurrent API calls (default 4, or `REVIEW_MAX_WORKERS`). |
+| `--raw-out` | Save raw agent outputs for debugging parse issues. |
+| `--env` | Path to a `.env` file (default `.env`). |
+
+## Operational Findings
+
+Failed calls do not abort a run. Findings with issue type `agent_error` (API call failed) or `parse_error` (response was not valid JSON) mark coverage gaps: re-run those agent/chunk combinations before trusting the sweep, and never report them as document issues.
+
 ## Credential Rules
 
 Use one of these approaches:
 
-- Environment: `OPENAI_API_KEY`, `OPENAI_BASE_URL`, `OPENAI_MODEL`.
+- Environment: `OPENAI_API_KEY`, `OPENAI_BASE_URL`, `OPENAI_MODEL` (see `.env.example`).
 - AIHubMix-compatible environment: `AIHUBMIX_API_KEY`, `AIHUBMIX_BASE_URL`, `AIHUBMIX_MODEL`.
-- Keyring: `python scripts/review_document.py store-key`.
+- Keyring: `python scripts/review_document.py store-key` (default service `doc-review-agent`, username `api-key`; override via `AIHUBMIX_KEYRING_SERVICE` / `AIHUBMIX_KEYRING_USERNAME`).
 
 Avoid `--api-key` except when the user explicitly requests it. Command history can leak secrets.
 

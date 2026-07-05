@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 
-JSON_INSTRUCTIONS = """
+_JSON_SHAPE = """
 Return only valid JSON in this shape:
 {
   "findings": [
@@ -16,9 +16,25 @@ Return only valid JSON in this shape:
     }
   ]
 }
-Use Chinese for reason and recommendation. If there is no issue, return {"findings": []}.
-Do not invent evidence. Mark uncertain items as needs_human_review=true.
 """.strip()
+
+_LANGUAGE_LINES = {
+    "zh": "Use Chinese for reason and recommendation.",
+    "en": "Use English for reason and recommendation.",
+}
+
+
+def json_instructions(language: str = "zh") -> str:
+    key = (language or "zh").strip().lower()
+    language_line = _LANGUAGE_LINES.get(key, f"Use {language} for reason and recommendation.")
+    return "\n".join(
+        [
+            _JSON_SHAPE,
+            language_line,
+            'If there is no issue, return {"findings": []}.',
+            "Do not invent evidence. Mark uncertain items as needs_human_review=true.",
+        ]
+    )
 
 
 AGENT_PROMPTS: dict[str, str] = {
@@ -76,10 +92,13 @@ def build_user_prompt(
     chunk_text: str,
     public_context: str,
     sensitive_terms: str,
+    section: str = "",
+    language: str = "zh",
 ) -> str:
     return f"""
 Document: {document_path}
 Chunk: {chunk_index + 1}/{chunk_count}
+Section: {section or "[unknown]"}
 
 Public context allowed for verification:
 {public_context or "[none provided]"}
@@ -92,5 +111,5 @@ Document chunk:
 {chunk_text}
 DOCUMENT_CHUNK>>>
 
-{JSON_INSTRUCTIONS}
+{json_instructions(language)}
 """.strip()
