@@ -1,0 +1,4 @@
+interface:
+  display_name: "Decision Document Auditor"
+  short_description: "Audit decisions and document logic"
+  default_prompt: "Use $decision-document-auditor to review this document for decision clarity, claim strength, risks, tradeoffs, normative wording, operating principles, and automated findings when a local file path is available."
